@@ -6,14 +6,16 @@
 
 #pragma once
 
-#include "carla/client/Actor.h"
-#include <rpc/client.h>
+#include "carla/trafficmanager/Constants.h"
+#include "carla/rpc/Actor.h"
 
-#define TM_TIMEOUT        2000 // In ms
-#define TM_DEFAULT_PORT   8000 // TM_SERVER_PORT
+#include <rpc/client.h>
 
 namespace carla {
 namespace traffic_manager {
+
+using constants::Networking::TM_TIMEOUT;
+using constants::Networking::TM_DEFAULT_PORT;
 
 /// Provides communication with the rpc of TrafficManagerServer.
 class TrafficManagerClient {
@@ -177,6 +179,18 @@ public:
   void SetKeepRightPercentage(const carla::rpc::Actor &actor, const float percentage) {
     DEBUG_ASSERT(_client != nullptr);
     _client->call("set_percentage_keep_right_rule", actor, percentage);
+  }
+
+  /// Method to set hybrid physics mode.
+  void SetHybridPhysicsMode(const bool mode_switch) {
+    DEBUG_ASSERT(_client != nullptr);
+    _client->call("set_hybrid_physics_mode", mode_switch);
+  }
+
+  /// Method to set hybrid physics mode.
+  void SetHybridPhysicsRadius(const float radius) {
+    DEBUG_ASSERT(_client != nullptr);
+    _client->call("set_hybrid_physics_radius", radius);
   }
 
 private:

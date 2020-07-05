@@ -7,18 +7,20 @@
 #pragma once
 
 #include <vector>
-#include <memory>
 
 #include "carla/Exception.h"
 #include "carla/client/Actor.h"
-#include "carla/Version.h"
+#include "carla/client/detail/ActorVariant.h"
 #include "carla/rpc/Server.h"
+#include "carla/trafficmanager/Constants.h"
 #include "carla/trafficmanager/TrafficManagerBase.h"
 
 namespace carla {
 namespace traffic_manager {
 
 using ActorPtr = carla::SharedPtr<carla::client::Actor>;
+
+using namespace constants::Networking;
 
 class TrafficManagerServer {
 public:
@@ -44,7 +46,8 @@ public:
         /// Create server instance.
         server = new ::rpc::server(RPCPort);
 
-      } catch(std::exception& e) {
+      } catch(std::exception) {
+        using namespace std::chrono_literals;
         /// Update port number and try again.
         std::this_thread::sleep_for(500ms);
       }
@@ -148,6 +151,16 @@ public:
       /// Method to specify the % chance of ignoring collisions with any vehicle.
       server->bind("set_percentage_keep_right_rule", [=](carla::rpc::Actor actor, const float percentage) {
         tm->SetKeepRightPercentage(carla::client::detail::ActorVariant(actor).Get(tm->GetEpisodeProxy()), percentage);
+      });
+
+      /// Method to set hybrid physics mode.
+      server->bind("set_hybrid_physics_mode", [=](const bool mode_switch) {
+        tm->SetHybridPhysicsMode(mode_switch);
+      });
+
+      /// Method to set hybrid physics radius.
+      server->bind("set_hybrid_physics_radius", [=](const float radius) {
+        tm->SetHybridPhysicsRadius(radius);
       });
 
       /// Method to set synchronous mode.

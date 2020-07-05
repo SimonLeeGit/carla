@@ -64,8 +64,6 @@ protected:
   FString OpenDriveData;
 
   UPROPERTY(EditAnywhere)
-  UProceduralMeshComponent *RoadMesh;
-
-  boost::optional<carla::road::Map> CarlaMap;
+  TArray<AActor *> ActorMeshList;
 
 };

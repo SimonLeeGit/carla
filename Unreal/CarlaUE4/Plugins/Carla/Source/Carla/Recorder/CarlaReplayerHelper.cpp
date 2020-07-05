@@ -12,6 +12,8 @@
 #include "Carla/Vehicle/WheeledVehicleAIController.h"
 #include "Carla/Walker/WalkerControl.h"
 #include "Carla/Walker/WalkerController.h"
+#include "Carla/Lights/CarlaLight.h"
+#include "Carla/Lights/CarlaLightSubsystem.h"
 
 // create or reuse an actor for replaying
 std::pair<int, FActorView>CarlaReplayerHelper::TryToCreateReplayerActor(
@@ -331,6 +333,46 @@ void CarlaReplayerHelper::ProcessReplayerAnimVehicle(CarlaRecorderAnimVehicle Ve
   }
 }
 
+// set the lights for vehicles
+void CarlaReplayerHelper::ProcessReplayerLightVehicle(CarlaRecorderLightVehicle LightVehicle)
+{
+  check(Episode != nullptr);
+  AActor *Actor = Episode->GetActorRegistry().Find(LightVehicle.DatabaseId).GetActor();
+  if (Actor && !Actor->IsPendingKill())
+  {
+    auto Veh = Cast<ACarlaWheeledVehicle>(Actor);
+    if (Veh == nullptr)
+    {
+      return;
+    }
+
+    carla::rpc::VehicleLightState LightState(LightVehicle.State);
+    Veh->SetVehicleLightState(FVehicleLightState(LightState));
+  }
+}
+
+void CarlaReplayerHelper::ProcessReplayerLightScene(CarlaRecorderLightScene LightScene)
+{
+  check(Episode != nullptr);
+  UWorld* World = Episode->GetWorld();
+  if(World)
+  {
+    UCarlaLightSubsystem* CarlaLightSubsystem = World->GetSubsystem<UCarlaLightSubsystem>();
+    if (!CarlaLightSubsystem)
+    {
+      return;
+    }
+    auto* CarlaLight = CarlaLightSubsystem->GetLight(LightScene.LightId);
+    if (CarlaLight)
+    {
+      CarlaLight->SetLightIntensity(LightScene.Intensity);
+      CarlaLight->SetLightColor(LightScene.Color);
+      CarlaLight->SetLightOn(LightScene.bOn);
+      CarlaLight->SetLightType(static_cast<ELightType>(LightScene.Type));
+    }
+  }
+}
+
 // set the animation for walkers
 void CarlaReplayerHelper::ProcessReplayerAnimWalker(CarlaRecorderAnimWalker Walker)
 {
@@ -353,17 +395,30 @@ bool CarlaReplayerHelper::ProcessReplayerFinish(bool bApplyAutopilot, bool bIgno
         // check for hero
         if (!(bIgnoreHero && IsHero[ActorView.GetActorId()]))
         {
+            // stop all vehicles
             SetActorSimulatePhysics(ActorView, true);
-            // autopilot
-            if (bApplyAutopilot)
-              SetActorAutopilot(ActorView, true, true);
+            SetActorVelocity(ActorView, FVector(0, 0, 0));
+            // reset any control assigned
+            auto Veh = Cast<ACarlaWheeledVehicle>(const_cast<AActor *>(ActorView.GetActor()));
+            if (Veh != nullptr)
+            {
+              FVehicleControl Control;
+              Control.Throttle = 0.0f;
+              Control.Steer = 0.0f;
+              Control.Brake = 0.0f;
+              Control.bHandBrake = false;
+              Control.bReverse = false;
+              Control.Gear = 1;
+              Control.bManualGearShift = false;
+              Veh->ApplyVehicleControl(Control, EVehicleInputPriority::User);
+            }
+
         }
         break;
 
       // walkers
       case FActorView::ActorType::Walker:
         // stop walker
-        SetActorVelocity(ActorView, FVector(0, 0, 0));
         SetWalkerSpeed(ActorView.GetActorId(), 0.0f);
         break;
     }

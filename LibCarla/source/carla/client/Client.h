@@ -62,8 +62,11 @@ namespace client {
       return World{_simulator->LoadEpisode(std::move(map_name))};
     }
 
-    World GenerateOpenDriveWorld(std::string opendrive) const {
-      return World{_simulator->LoadOpenDriveEpisode(std::move(opendrive))};
+    World GenerateOpenDriveWorld(
+        std::string opendrive,
+        const rpc::OpendriveGenerationParameters & params) const {
+      return World{_simulator->LoadOpenDriveEpisode(
+          std::move(opendrive), params)};
     }
 
     /// Return an instance of the world currently active in the simulator.
@@ -81,8 +84,8 @@ namespace client {
       return _simulator->GetCurrentEpisode();
     }
 
-    std::string StartRecorder(std::string name) {
-      return _simulator->StartRecorder(name);
+    std::string StartRecorder(std::string name, bool additional_data = false) {
+      return _simulator->StartRecorder(name, additional_data);
     }
 
     void StopRecorder(void) {

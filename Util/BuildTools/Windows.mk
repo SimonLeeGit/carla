@@ -14,12 +14,12 @@ help:
 # use PHONY to force next line as command and avoid conflict with folders of the same name
 .PHONY: import
 import: server
-	@"${CARLA_BUILD_TOOLS_FOLDER}/Import.py"
+	@"${CARLA_BUILD_TOOLS_FOLDER}/Import.py" $(ARGS)
 
 CarlaUE4Editor: LibCarla
 	@"${CARLA_BUILD_TOOLS_FOLDER}/BuildCarlaUE4.bat" --build
 
-launch: LibCarla
+launch: CarlaUE4Editor
 	@"${CARLA_BUILD_TOOLS_FOLDER}/BuildCarlaUE4.bat" --launch
 
 launch-only:
@@ -28,14 +28,18 @@ launch-only:
 package: PythonAPI
 	@"${CARLA_BUILD_TOOLS_FOLDER}/Package.bat" --ue-version 4.24 $(ARGS)
 
+.PHONY: docs
 docs:
 	@doxygen
 	@echo "Documentation index at ./Doxygen/html/index.html"
 
+PythonAPI.docs:
+	python PythonAPI/docs/doc_gen.py
+	cd PythonAPI/docs && python bp_doc_gen.py
+
 clean:
 	@"${CARLA_BUILD_TOOLS_FOLDER}/Package.bat" --clean --ue-version 4.24
 	@"${CARLA_BUILD_TOOLS_FOLDER}/BuildCarlaUE4.bat" --clean
-
 	@"${CARLA_BUILD_TOOLS_FOLDER}/BuildPythonAPI.bat" --clean
 	@"${CARLA_BUILD_TOOLS_FOLDER}/BuildLibCarla.bat" --clean
 

@@ -24,6 +24,7 @@
 #include <carla/rpc/DebugShape.h>
 #include <carla/rpc/EpisodeInfo.h>
 #include <carla/rpc/EpisodeSettings.h>
+#include <carla/rpc/LightState.h>
 #include <carla/rpc/MapInfo.h>
 #include <carla/rpc/Response.h>
 #include <carla/rpc/Server.h>
@@ -34,6 +35,7 @@
 #include <carla/rpc/VehicleControl.h>
 #include <carla/rpc/VehiclePhysicsControl.h>
 #include <carla/rpc/VehicleLightState.h>
+#include <carla/rpc/VehicleLightStateList.h>
 #include <carla/rpc/WalkerBoneControl.h>
 #include <carla/rpc/WalkerControl.h>
 #include <carla/rpc/WeatherParameters.h>
@@ -67,7 +69,7 @@ public:
   FPimpl(uint16_t RPCPort, uint16_t StreamingPort)
     : Server(RPCPort),
       StreamingServer(StreamingPort),
-      BroadcastStream(StreamingServer.MakeMultiStream())
+      BroadcastStream(StreamingServer.MakeStream())
   {
     BindActions();
   }
@@ -79,7 +81,7 @@ public:
 
   carla::streaming::Server StreamingServer;
 
-  carla::streaming::MultiStream BroadcastStream;
+  carla::streaming::Stream BroadcastStream;
 
   UCarlaEpisode *Episode = nullptr;
 
@@ -227,17 +229,17 @@ void FCarlaServer::FPimpl::BindActions()
   BIND_SYNC(load_new_episode) << [this](const std::string &map_name) -> R<void>
   {
     REQUIRE_CARLA_EPISODE();
-    if (!Episode->LoadNewEpisode(cr::ToFString(map_name)))
+    if(!Episode->LoadNewEpisode(cr::ToFString(map_name)))
     {
       RESPOND_ERROR("map not found");
     }
     return R<void>::Success();
   };
 
-  BIND_SYNC(copy_opendrive_to_file) << [this](const std::string &opendrive) -> R<void>
+  BIND_SYNC(copy_opendrive_to_file) << [this](const std::string &opendrive, cr::OpendriveGenerationParameters Params) -> R<void>
   {
     REQUIRE_CARLA_EPISODE();
-    if (!Episode->LoadNewOpendriveEpisode(cr::ToFString(opendrive)))
+    if (!Episode->LoadNewOpendriveEpisode(cr::ToLongFString(opendrive), Params))
     {
       RESPOND_ERROR("opendrive could not be correctly parsed");
     }
@@ -259,7 +261,7 @@ void FCarlaServer::FPimpl::BindActions()
     const auto &SpawnPoints = Episode->GetRecommendedSpawnPoints();
     return cr::MapInfo{
       cr::FromFString(Episode->GetMapName()),
-      cr::FromFString(FileContents),
+      cr::FromLongFString(FileContents),
       MakeVectorFromTArray<cg::Transform>(SpawnPoints)};
   };
 
@@ -564,6 +566,28 @@ void FCarlaServer::FPimpl::BindActions()
     return R<void>::Success();
   };
 
+  BIND_SYNC(add_actor_angular_impulse) << [this](
+      cr::ActorId ActorId,
+      cr::Vector3D vector) -> R<void>
+  {
+    REQUIRE_CARLA_EPISODE();
+    auto ActorView = Episode->FindActor(ActorId);
+    if (!ActorView.IsValid())
+    {
+      RESPOND_ERROR("unable to add actor angular impulse: actor not found");
+    }
+    auto RootComponent = Cast<UPrimitiveComponent>(ActorView.GetActor()->GetRootComponent());
+    if (RootComponent == nullptr)
+    {
+      RESPOND_ERROR("unable to add actor angular impulse: not supported by actor");
+    }
+    RootComponent->AddAngularImpulseInDegrees(
+        vector.ToFVector(),
+        "None",
+        false);
+    return R<void>::Success();
+  };
+
   BIND_SYNC(get_physics_control) << [this](
       cr::ActorId ActorId) -> R<cr::VehiclePhysicsControl>
   {
@@ -621,7 +645,7 @@ void FCarlaServer::FPimpl::BindActions()
     return R<void>::Success();
   };
 
-  BIND_SYNC(apply_vehicle_light_state) << [this](
+  BIND_SYNC(set_vehicle_light_state) << [this](
       cr::ActorId ActorId,
       cr::VehicleLightState LightState) -> R<void>
   {
@@ -851,6 +875,27 @@ void FCarlaServer::FPimpl::BindActions()
     return R<void>::Success();
   };
 
+  BIND_SYNC(get_vehicle_light_states) << [this]() -> R<cr::VehicleLightStateList>
+  {
+    REQUIRE_CARLA_EPISODE();
+    cr::VehicleLightStateList List;
+
+    auto It = Episode->GetActorRegistry().begin();
+    for (; It != Episode->GetActorRegistry().end(); ++It)
+    {
+      auto Actor = It->GetActor();
+      if (!Actor->IsPendingKill() && It->GetActorType() == FActorView::ActorType::Vehicle)
+      {
+        const ACarlaWheeledVehicle *Vehicle = Cast<ACarlaWheeledVehicle>(Actor);
+        List.emplace_back(
+            It->GetActorId(),
+            cr::VehicleLightState(Vehicle->GetVehicleLightState()).GetLightStateAsValue());
+      }
+    }
+
+    return List;
+  };
+
   BIND_SYNC(get_group_traffic_lights) << [this](
       const cr::ActorId ActorId) -> R<std::vector<cr::ActorId>>
   {
@@ -879,10 +924,10 @@ void FCarlaServer::FPimpl::BindActions()
 
   // ~~ Logging and playback ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  BIND_SYNC(start_recorder) << [this](std::string name) -> R<std::string>
+  BIND_SYNC(start_recorder) << [this](std::string name, bool AdditionalData) -> R<std::string>
   {
     REQUIRE_CARLA_EPISODE();
-    return R<std::string>(Episode->StartRecorder(name));
+    return R<std::string>(Episode->StartRecorder(name, AdditionalData));
   };
 
   BIND_SYNC(stop_recorder) << [this]() -> R<void>
@@ -1009,8 +1054,11 @@ void FCarlaServer::FPimpl::BindActions()
       [=](auto, const C::ApplyVelocity &c) {        MAKE_RESULT(set_actor_velocity(c.actor, c.velocity)); },
       [=](auto, const C::ApplyAngularVelocity &c) { MAKE_RESULT(set_actor_angular_velocity(c.actor, c.angular_velocity)); },
       [=](auto, const C::ApplyImpulse &c) {         MAKE_RESULT(add_actor_impulse(c.actor, c.impulse)); },
+      [=](auto, const C::ApplyAngularImpulse &c) {  MAKE_RESULT(add_actor_angular_impulse(c.actor, c.impulse)); },
       [=](auto, const C::SetSimulatePhysics &c) {   MAKE_RESULT(set_actor_simulate_physics(c.actor, c.enabled)); },
+      // TODO: SetAutopilot should be removed. This is the old way to control the vehicles
       [=](auto, const C::SetAutopilot &c) {         MAKE_RESULT(set_actor_autopilot(c.actor, c.enabled)); },
+      [=](auto, const C::SetVehicleLightState &c) { MAKE_RESULT(set_vehicle_light_state(c.actor, c.light_state)); },
       [=](auto, const C::ApplyWalkerState &c) {     MAKE_RESULT(set_walker_state(c.actor, c.transform, c.speed)); });
 
 #undef MAKE_RESULT
@@ -1031,6 +1079,34 @@ void FCarlaServer::FPimpl::BindActions()
     }
     return result;
   };
+
+  // ~~ Light Subsystem ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  BIND_SYNC(query_lights_state) << [this](std::string client) -> R<std::vector<cr::LightState>>
+  {
+    REQUIRE_CARLA_EPISODE();
+    std::vector<cr::LightState> result;
+    auto *World = Episode->GetWorld();
+    if(World) {
+      UCarlaLightSubsystem* CarlaLightSubsystem = World->GetSubsystem<UCarlaLightSubsystem>();
+      result = CarlaLightSubsystem->GetLights(FString(client.c_str()));
+    }
+    return result;
+  };
+
+  BIND_SYNC(update_lights_state) << [this]
+    (std::string client, const std::vector<cr::LightState>& lights, bool discard_client) -> R<void>
+  {
+    REQUIRE_CARLA_EPISODE();
+    auto *World = Episode->GetWorld();
+    if(World) {
+      UCarlaLightSubsystem* CarlaLightSubsystem = World->GetSubsystem<UCarlaLightSubsystem>();
+      CarlaLightSubsystem->SetLights(FString(client.c_str()), lights, discard_client);
+    }
+    return R<void>::Success();
+  };
+
+
 }
 
 // =============================================================================

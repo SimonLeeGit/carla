@@ -23,6 +23,8 @@ except IndexError:
 
 import carla
 
+from carla import VehicleLightState as vls
+
 import argparse
 import logging
 import random
@@ -69,7 +71,7 @@ def main():
         default='walker.pedestrian.*',
         help='pedestrians filter (default: "walker.pedestrian.*")')
     argparser.add_argument(
-        '-tm_p', '--tm_port',
+        '--tm-port',
         metavar='P',
         default=8000,
         type=int,
@@ -78,6 +80,15 @@ def main():
         '--sync',
         action='store_true',
         help='Synchronous mode execution')
+    argparser.add_argument(
+        '--hybrid',
+        action='store_true',
+        help='Enanble')
+    argparser.add_argument(
+        '--car-lights-on',
+        action='store_true',
+        default=False,
+        help='Enanble car lights')
     args = argparser.parse_args()
 
     logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
@@ -87,14 +98,15 @@ def main():
     all_id = []
     client = carla.Client(args.host, args.port)
     client.set_timeout(10.0)
+    synchronous_master = False
 
     try:
+        world = client.get_world()
 
         traffic_manager = client.get_trafficmanager(args.tm_port)
         traffic_manager.set_global_distance_to_leading_vehicle(2.0)
-        world = client.get_world()
-
-        synchronous_master = False
+        if args.hybrid:
+            traffic_manager.set_hybrid_physics_mode(True)
 
         if args.sync:
             settings = world.get_settings()
@@ -130,6 +142,7 @@ def main():
         # @todo cannot import these directly.
         SpawnActor = carla.command.SpawnActor
         SetAutopilot = carla.command.SetAutopilot
+        SetVehicleLightState = carla.command.SetVehicleLightState
         FutureActor = carla.command.FutureActor
 
         # --------------
@@ -147,7 +160,16 @@ def main():
                 driver_id = random.choice(blueprint.get_attribute('driver_id').recommended_values)
                 blueprint.set_attribute('driver_id', driver_id)
             blueprint.set_attribute('role_name', 'autopilot')
-            batch.append(SpawnActor(blueprint, transform).then(SetAutopilot(FutureActor, True)))
+
+            # prepare the light state of the cars to spawn
+            light_state = vls.NONE
+            if args.car_lights_on:
+                light_state = vls.Position | vls.LowBeam | vls.LowBeam
+
+            # spawn the cars and set their autopilot and light state all together
+            batch.append(SpawnActor(blueprint, transform)
+                .then(SetAutopilot(FutureActor, True, traffic_manager.get_port()))
+                .then(SetVehicleLightState(FutureActor, light_state)))
 
         for response in client.apply_batch_sync(batch, synchronous_master):
             if response.error:

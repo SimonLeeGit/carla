@@ -4,10 +4,7 @@
 // This work is licensed under the terms of the MIT license.
 // For a copy, see <https://opensource.org/licenses/MIT>.
 
-#include <carla/client/Client.h>
-#include "carla/client/TrafficLight.h"
-#include "carla/client/ActorList.h"
-#include "carla/client/DebugHelper.h"
+#include "carla/client/detail/Simulator.h"
 
 #include "carla/trafficmanager/TrafficManagerRemote.h"
 
@@ -174,6 +171,14 @@ void TrafficManagerRemote::SetKeepRightPercentage(const ActorPtr &_actor, const 
   carla::rpc::Actor actor(_actor->Serialize());
 
   client.SetKeepRightPercentage(actor, percentage);
+}
+
+void TrafficManagerRemote::SetHybridPhysicsMode(const bool mode_switch) {
+  client.SetHybridPhysicsMode(mode_switch);
+}
+
+void TrafficManagerRemote::SetHybridPhysicsRadius(const float radius) {
+  client.SetHybridPhysicsRadius(radius);
 }
 
 void TrafficManagerRemote::ResetAllTrafficLights() {

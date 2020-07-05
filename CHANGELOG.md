@@ -1,13 +1,56 @@
 ## Latest
 
+  * Added Light ids
+  * Added vehicle light and street light data to recorder
+  * Added API function `add_angular_impulse()` to add angular impulse to any actor
+  * Fixed rain drop spawn issues when spawning camera sensors
+  * Fixed Update.sh from failing when the root folder contains a space on it
+  * Fixed colors of lane markings when importing a map, they were reversed (white and yellow)
+  * Fixed missing include directive in file **WheelPhysicsControl.h**
+  * Fixed gravity measurement bug from IMU sensor
+  * All sensors are now multi-stream, that means that the same sensor can be listened from different clients
+  * Fixed point cloud of LiDAR. Now the points are given correctly in the sensor's coordinate system.
+  * Exposed matrix form of transformation to the client and Python API.
+  * Added PythonAPI command to set multiple car light states at once
+  * Added PythonAPI `carla.world.get_vehicles_light_states` to get all the car light states at once
+  * OpenDRIVE ingestion bugfixes
+  * Improved the LiDAR and Radar sensors with a parallel implentation of the raycasting
+  * Added Dynamic Vision Sensor (DVS) camera based on ESIM simulation http://rpg.ifi.uzh.ch/esim.html
+  * Improved LiDAR and radar to better match the shape of the vehicles
+  * Added support for additional TraCI clients in Sumo co-simulation
+  * Added API functions `get_right_vector` and `get_up_vector`
+  * Added default values and a warning message for lanes missing the width parameter in OpenDRIVE
+  * Added parameter to enable/disable pedestrian navigation in standalone mode
+  * Improved mesh split in standalone mode
+  * Fixed delay in the tcp communication from server to client, improving performance in synchronous mode in linux systems
+  * Fixed large RAM usage when loading polinomial geometry from OpenDRIVE
+  * Fixed collision issues when debug draw(debug.draw_line) is called 
+  * Fixed Gyroscope sensor to properly give angular velocity readings in local frame
+
+## CARLA 0.9.9
+
+  * Introduced hybrid mode for Traffic Manager
   * Upgraded to Unreal Engine 4.24
   * Fixed autonomous agents' incorrect detection of red traffic lights affecting them
+  * Improved manual_control by adding realistic throttle and brake
+  * Added walkable pedestrian crosswalks in OpenDRIVE standalone mode
+  * Improved mesh generation with a chunk system for better performance and bigger maps in the future
+  * Added security features to the standalone OpenDRIVE mode aiming to prevent cars from falling down from the road
+  * Added junction smoothing algorithm to prevent roads from blocking other roads with level differences
+  * Added new Behavior agent
+  * Added automatic generation of traffic lights, stop signal and yield signal from OpenDRIVE file
+  * Upgraded to AD RSS v3.0.0 supporting complex road layouts and i.e. intersections
+  * Added examples of sumo co-simulation for Town01, Town04 and Town05
+  * Added ptv vissim and carla co-simulation
+  * Fixed `GetLeftLaneMarking()` from a possible runtime error
+  * API extensions:
+    - Added new methods to `Map`: `get_all_landmarks`, `get_all_landmarks_from_id` and `get_all_landmarks_of_type`
+  * Added synchronization of traffic lights in sumo co-simulation
+  * Added light manager to control the lights of the map
 
 ## CARLA 0.9.8
 
-  * Improved manual_control by adding realistic throttle and brake
-  * Added new Behavior agent
-  * Added beta version sumo-carla co-simulation.
+  * Added beta version sumo-carla co-simulation
   * Traffic Manager:
     - Added benchmark
     - Added synchronous mode
@@ -19,8 +62,8 @@
     - Implemented vehicle destruction when stuck
     - Implemented tunable parameters
     - Revamped lane changes
-  * Added landmark class for signal-related queries.
-  * Added support to parse OpenDRIVE signals.
+  * Added landmark class for signal-related queries
+  * Added support to parse OpenDRIVE signals
   * Added junction class as queryable object from waypoint
   * Added timeout to World Tick
   * Added simple physical map generation from standalone OpenDRIVE data
@@ -37,17 +80,17 @@
     - Added `carla.client.generate_opendrive_world(opendrive)` that loads a map with custom OpenDRIVE basic physical topology
   * New python clients:
     - `weather.py`: allows weather changes using the new weather parameters
-  * Fixed docker build of .BIN for pedestrian navigation
-  * Fixed local_planner.py: agent will now stop when it reaches the desired destination
+  * Fixed docker build of `.BIN` for pedestrian navigation
+  * Fixed `local_planner.py`: agent will now stop when it reaches the desired destination
   * Fixed crash when missing elevation profile and lane offset in OpenDRIVE
   * Fixed typos
-  * Fixed agent failures due to API changes in is_within_distance_ahead()
+  * Fixed agent failures due to API changes in `is_within_distance_ahead()`
   * Fixed assertion bug when using LibCarla
   * Fixed incorrect doppler velocity for RADAR sensor
   * Fixed documentation links
   * Upgraded Boost to 1.72.0
   * Recorder feature:
-    - Added an option (-i) when replaying a session to ignore the hero vehicles
+    - Added an option `-i` to `start_replaying.py` to replay a session ignoreing the hero vehicles
   * Fixed import pipeline bugs:
     - Crash when no pedestrian navmesh is present
     - Automatically imported static meshes not properly tagged
